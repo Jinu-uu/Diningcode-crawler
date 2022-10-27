@@ -23,7 +23,7 @@ class DanawaCrawler:
                 '은평구', '종로구', '중구', '중랑구']
     SEARCH_URL = 'https://www.diningcode.com/list.dc?query='
     DETAIL_URL = 'https://www.diningcode.com/profile.php?rid='
-    TIMEOUT_LIMIT = 10
+    TIMEOUT_LIMIT = 20
     CATEGORY_URL = {
         # 'CPU'   :'http://prod.danawa.com/list/?cate=112747',
         # 'RAM'   :'http://prod.danawa.com/list/?cate=112752',
@@ -51,7 +51,6 @@ class DanawaCrawler:
 
 
     def __init__(self):
-        assert self.QUENTITY_PER_PAGE in [30, 60, 90]
         options = ChromeOptions()
         options.add_argument('--start-maximized')
         options.add_argument('--incognito')
@@ -94,64 +93,45 @@ class DanawaCrawler:
 
     def crawling(self):
         print('Crawl primary keys')
-        self.crawling_primary_key()
-        print('Crawl details')
-        self.crawling_detail()
+        self.crawling_id()
+        # print('Crawl details')
+        # self.crawling_detail()
         # print('Crawl reviews')
         # self.crawling_review()
 
 
-    def crawling_primary_key(self):
-        for category_title, category_link in self.CATEGORY_URL.items():
-            df = pd.DataFrame(columns=['id', 'id_validator'])
-            df.set_index('id', inplace=True)
-            df.to_hdf(self.SAVE_DIR, category_title)
-
-            progress = 0
+    def crawling_id(self):
+        df = pd.DataFrame(columns=['id'])
+        df.to_hdf(self.SAVE_DIR, 'ID')
+        for district in self.SEOUL_DISTRICT:
+            print(f'Processing {district}')
             while True:
-                df = pd.read_hdf(self.SAVE_DIR, category_title)
                 try:
-                    self.driver.get(category_link)
-                    product_list_area = self.find_element_or_wait(self.driver, '//*[@id="productListArea"]')
-                    qnt_    or = self.find_element_or_wait(product_list_area, './/select[@class="qnt_selector"]')
-                    qnt_selector = Select(qnt_selector)
-                    qnt_selector.select_by_value(str(self.QUENTITY_PER_PAGE))
+                    self.driver.get(self.SEARCH_URL + district)
                     self.wait()
-                    product_count = product_list_area.find_element(By.XPATH, './/*[@id="totalProductCount"]')
-                    product_count = product_count.get_property('value')
-                    product_count = int(product_count.replace(',', ''))
-                    page_count = (product_count + self.QUENTITY_PER_PAGE - 1) // self.QUENTITY_PER_PAGE
-                    
-                    for page_num in tqdm(range(progress, page_count), category_title, initial=progress, total=page_count):
-                        if page_num > 0 and page_num % 10 == 0:
-                            self.find_element_or_wait(product_list_area, './/*[@class="edge_nav nav_next"]').click()
-                        elif page_num > 0:
-                            self.find_element_or_wait(product_list_area, f'.//*[@class="number_wrap"]/*[{page_num % 10 + 1}]').click()
-                        self.wait()
-                        
-                        product_list = self.find_element_or_wait(product_list_area, './/*[@class="main_prodlist main_prodlist_list"]')
-                        products = product_list.find_elements(By.XPATH, './/*[@class="prod_pricelist "]/*[1]/*')
-                        for product in products:
-                            id = product.get_property('id')
-                            id_validator = re.match(r'^productInfoDetail_\d+$', id) is not None
-                            if id_validator:
-                                id = id[len('productInfoDetail_'):]
-                            df.loc[id] = [id_validator]
 
-                        if (page_num + 1) % self.SAVE_KEY_INTERVAL == 0 or (page_num     + 1) == page_count:
-                            df.to_hdf(self.SAVE_DIR, category_title)
-                            progress = page_num + 1
+                    for x in range(4): self.find_element_or_wait(self.driver, '//*[@class="SearchMore upper"]').click()
+
+                    raw_id = self.driver.find_elements(By.XPATH, '//*[@class="PoiBlock"]')
+                    restaurant_url_list = []
+
+                    for x in raw_id:
+                        restaurant_url_list.append(x.get_attribute('id').replace('block',''))
+                    tmp_df = pd.DataFrame({'id' : restaurant_url_list})
 
                 except NoSuchWindowException:
                     print('Window already closed')
-                    print(f'Current page is {progress}')
                     exit(-1)
                 except Exception as e:
                     print(e)
-                    print(f'Restart from {progress} page')
+                    print('Restart')
                 else:
-                    df.to_hdf(self.SAVE_DIR, category_title)
+                    df = pd.concat([df, tmp_df], axis = 0)
+                    df.to_hdf(self.SAVE_DIR, 'ID')
                     break
+
+        df = df.reset_index().drop(columns=['index'])
+        df.to_hdf(self.SAVE_DIR, 'ID')
 
 
     def crawling_detail(self):
