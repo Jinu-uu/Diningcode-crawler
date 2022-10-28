@@ -1,8 +1,11 @@
 # Diningcode-crawler
 Dining code homepage crawler
 link : https://www.diningcode.com/   
-<table>
-    <tr>
-        <td align="center"><a href="https://github.com/Jinu-uu"><img src="https://avatars.githubusercontent.com/u/82719310?v=4" width="300px alt="Jinu-uu pic."/><br/><sub><b>Jinu-uu</b></sub></a><br /></td>
-      </tr>
-</table>
+   
+### module install   
+pip install webdriver-manager   
+pip install selenium>=4.3.0   
+pip install tqdm   
+   
+### Run   
+python crawler.py
