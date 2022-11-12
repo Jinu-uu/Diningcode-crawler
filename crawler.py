@@ -25,7 +25,7 @@ class DiningCodeCrawler:
     DETAIL_URL = 'https://www.diningcode.com/profile.php?rid='
     TIMEOUT_LIMIT = 2
     SAVE_POINT_DIR = './savepoint.text'
-    SAVE_DIR = './diningcode.h5'
+    SAVE_DIR = './diningcode_revision.h5'
     RE_NUM = re.compile(r'\d+')
 
 
@@ -80,8 +80,8 @@ class DiningCodeCrawler:
         write_file.close()
 
     def crawling(self):
-        # print('Crawl ID')
-        # self.crawling_id()
+        print('Crawl ID')
+        self.crawling_id()
         print('Crawl reviews')
         self.crawling_review()
 
@@ -97,7 +97,7 @@ class DiningCodeCrawler:
                         self.find_element_or_wait(self.driver, '//*[@class="SearchMore upper"]').click()
                         self.driver.implicitly_wait(10)
 
-                    self.driver.find_elements(By.XPATH, '//*[@class="tmp loading --"]/*[2]')
+                    self.driver.find_elements(By.XPATH, '//*[@class="tmp loading asdfASDF--"]/*[2]')
                     #없는 elements 찾아서 강제로 전체 탐색
                     raw_id = self.driver.find_elements(By.XPATH, '//*[@class="PoiBlockContainer"]/*[2]')
 
@@ -123,11 +123,12 @@ class DiningCodeCrawler:
 
 
     def crawling_review(self):
-        id_list = list(pd.read_hdf(self.SAVE_DIR, 'ID')['id'])
+        id_list = list(pd.read_hdf('./diningcode.h5', 'ID')['id'])
         start = self.load_save_point()
         if start == 0:
             df = pd.DataFrame(columns=['ID', 'Name', 'Types', 'Like Count', 'Location',
                                     'Tags', 'Total Review', 'Total Score', 'Score', 'Detail Score',
+                                    'Total Tag', 'Open Time', 'Menu', 'User', 'Daco',
                                     'Detail Score List', 'Date List', 'Total Score List', 'Review List', 'Review Rec List'])
             df.to_hdf(self.SAVE_DIR, 'Detail')
         else:
@@ -137,11 +138,57 @@ class DiningCodeCrawler:
             for index in tqdm(range(start, len(id_list))):
                 try:
                     self.driver.get(self.DETAIL_URL + id_list[index])
+                    
+                    tmp_len = len(self.driver.find_elements(By.XPATH, '//*[@class="more-btn button"]'))
+                    tmp_clicks = self.driver.find_elements(By.XPATH, '//*[@class="more-btn button"]')
+                    for x in range(tmp_len):
+                        tmp_clicks[x].click()
+                    menu_flag = 1
+                    tmp_menu_click = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="menu-info short"]//*[@class="more-btn"]')
+                    if len(tmp_menu_click) != 0:
+                        tmp_menu_click[0].click()
+                        menu_flag = 0
+
+                    open_flag = 1
+                    tmp_open_click = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="busi-hours short"]//*[@class="more-btn"]')
+                    if len(tmp_open_click) != 0:
+                        tmp_open_click[0].click()
+                        open_flag = 0
+
+                    if menu_flag == 0:
+                        menu_left = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="menu-info"]//*[@class="l-txt Restaurant_MenuItem"]')
+                        menu_right = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="menu-info"]//*[@class="r-txt Restaurant_MenuPrice"]')
+                    else:
+                        menu_left = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="menu-info short"]//*[@class="l-txt Restaurant_MenuItem"]')
+                        menu_right = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="menu-info short"]//*[@class="r-txt Restaurant_MenuPrice"]')
+                    
+                    if open_flag == 0:
+                        open_left = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="busi-hours"]//*[@class="l-txt"]')
+                        open_right = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="busi-hours"]//*[@class="r-txt"]')
+                    else:
+                        open_left = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="busi-hours short"]//*[@class="l-txt"]')
+                        open_right = self.driver.find_elements(By.XPATH, '//*[@class="s-list detail-info"]//*[@class="busi-hours short"]//*[@class="r-txt"]')
+                    
+
+                    restaurant_open_time = []
+                    for x in range(len(open_left)):
+                        restaurant_open_time.append(f"{open_left[x].text}---{open_right[x].text}")
+
+                    restaurant_menu = []
+                    for x in range(len(menu_left)):
+                        restaurant_menu.append(f"{menu_left[x].text}---{menu_right[x].text}")
+
+                    print(restaurant_open_time,restaurant_menu)
                     restaurant_name = self.find_element_or_none(self.driver, '//*[@class="s-list pic-grade"]//*[@class="tit-point"]//*[@class="tit"]').text
                     restaurant_type = self.find_element_or_none(self.driver, '//*[@class="s-list pic-grade"]//*[@class="btxt"]').text.split('|')[1].strip().split(',')
                     restaurant_like = self.find_element_or_none(self.driver, '//*[@class="favor-pic-appra"]//*[@class="favor"]/*//*[@class="num"]').text
                     restaurant_location = self.find_element_or_none(self.driver, '//*[@class="locat"]').text
                     restaurant_tag = self.find_element_or_none(self.driver, '//*[@class="tag"]').text.split(',') + self.find_element_or_none(self.driver, '//*[@class="char"]').text.split(',')
+                    total_tag = self.driver.find_elements(By.XPATH, '//*[@class="app-arti"]//*[@class="icon"]')
+                    restaurant_total_tag = []
+                    for x in range(len(total_tag)):
+                        restaurant_total_tag.append(total_tag[x].text)
+                    
 
                     restaurant_total_review_count = int(self.RE_NUM.findall(self.find_element_or_none(self.driver, '//*[@class="s-list appraisal"]//*[@class="tit"]').text)[0])
                     restaurant_total_score = self.find_element_or_none(self.driver, '//*[@class="sns-grade"]//*[@class="grade"]/*[1]').text
@@ -154,9 +201,17 @@ class DiningCodeCrawler:
                         if view_more == None: break
                         view_more.click()
                     review_area = self.driver.find_elements(By.XPATH, '//*[@class="latter-graph"]')
-                    review_detail_score_list, review_date, review_total_score_list, review_list, review_rec = [], [], [], [], []
+                    review_user, review_user_daco, review_detail_score_list, review_date, review_total_score_list, review_list, review_rec = [], [], [], [], [], [], []
 
                     for x in range(len(review_area)):
+                        review_user.append(self.find_element_or_none(review_area[x], '*[@class="person-grade"]//*[@class="btxt"]').text)
+                        daco_flag = self.find_element_or_none(review_area[x], '*[@class="person-grade"]//*[@class="btxt"]//img')
+
+                        if daco_flag == None:
+                            review_user_daco.append(0)
+                        else:
+                            review_user_daco.append(1)
+
                         if len(review_area[x].find_elements(By.XPATH, '*[@class="point-detail"]')) != 0:
                             review_detail_score_list.append(self.find_element_or_none(review_area[x], '*[@class="point-detail"]').text)
                         else:
@@ -177,6 +232,7 @@ class DiningCodeCrawler:
 
                     df.loc[index] = [id_list[index], restaurant_name, restaurant_type, restaurant_like, restaurant_location,
                                     restaurant_tag, restaurant_total_review_count, restaurant_total_score,restaurant_score, restaurant_detail_score,
+                                    restaurant_total_tag, restaurant_open_time, restaurant_menu, review_user, review_user_daco,
                                     review_detail_score_list, review_date, review_total_score_list, review_list, review_rec]
 
                 except NoSuchWindowException:
@@ -187,8 +243,8 @@ class DiningCodeCrawler:
                     print(e)
                     print(f'Restart from {index} page')
                 else:
-                    self.write_save_point(index+1)
                     df.to_hdf(self.SAVE_DIR, 'Detail')
+                    self.write_save_point(index+1)
         
         df.to_hdf(self.SAVE_DIR, 'Detail')
 
